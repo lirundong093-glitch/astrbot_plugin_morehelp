@@ -3,7 +3,7 @@ import os
 import platform
 import traceback
 from PIL import Image, ImageDraw, ImageFont
-from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.event import AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 
 @register("astrbot_plugin_morehelp", "YourName", "自定义帮助插件，支持指令增删并生成图片", "1.0.0")
@@ -50,6 +50,29 @@ class HelpPlugin(Star):
         return str(user_id) == self.admin_id
 
     def _get_system_font(self) -> str:
+        try:
+            from matplotlib import font_manager
+            font_names = []
+            system = platform.system()
+            if system == "Windows":
+                font_names = ["Microsoft YaHei", "SimHei", "SimSun"]
+            elif system == "Darwin":
+                font_names = ["PingFang SC", "Heiti SC", "STHeiti"]
+            else:
+                font_names = ["Noto Sans CJK SC", "WenQuanYi Micro Hei", "DejaVu Sans"]
+
+            for name in font_names:
+                try:
+                    font_path = font_manager.findfont(name, fallback_to_default=False)
+                    if font_path and os.path.exists(font_path):
+                        print(f"[MoreHelp] 使用 matplotlib 找到字体: {font_path}")
+                        return font_path
+                except:
+                    continue
+        except ImportError:
+            print("[MoreHelp] matplotlib 未安装，回退到系统路径检测。")
+        except Exception as e:
+            print(f"[MoreHelp] matplotlib 字体查找失败: {e}")
 
         system = platform.system()
         font_paths = []
@@ -83,14 +106,14 @@ class HelpPlugin(Star):
         print("[MoreHelp] 未找到任何中文字体，将使用默认字体。")
         return ""
 
-    # ----- 消息处理入口（使用装饰器确保被调用）-----
-    @filter.on_message(priority=10)
-    async def handle_message(self, event: AstrMessageEvent):
+    # ----- 核心消息入口 -----
+    async def run(self, event: AstrMessageEvent) -> MessageEventResult:
         try:
             msg = event.get_message_text().strip()
             user_id = str(event.get_sender_id())
             session_id = event.get_session_id()
 
+            # 调试日志：验证 run 方法是否被调用
             print(f"[MoreHelp] 收到消息: '{msg}' from user: {user_id}, session: {session_id}")
 
             # 情况1：用户正在等待输入指令说明
