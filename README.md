@@ -1,11 +1,46 @@
-# astrbot-plugin-helloworld
+# astrbot_plugin_morehelp
 
-AstrBot 插件模板 / A template plugin for AstrBot plugin feature
+一个 AstrBot 自定义帮助插件，支持管理员动态增删指令并生成帮助图片。
+<div align="center">
 
-> [!NOTE]
-> This repo is just a template of [AstrBot](https://github.com/AstrBotDevs/AstrBot) Plugin.
-> 
-> [AstrBot](https://github.com/AstrBotDevs/AstrBot) is an agentic assistant for both personal and group conversations. It can be deployed across dozens of mainstream instant messaging platforms, including QQ, Telegram, Feishu, DingTalk, Slack, LINE, Discord, Matrix, etc. In addition, it provides a reliable and extensible conversational AI infrastructure for individuals, developers, and teams. Whether you need a personal AI companion, an intelligent customer support agent, an automation assistant, or an enterprise knowledge base, AstrBot enables you to quickly build AI applications directly within your existing messaging workflows.
+[![Moe Counter](https://count.getloli.com/get/@lirundong093-glitch?theme=moebooru)](https://github.com/lirundong093-glitch/astrbot_plugin_morehelp)
+
+</div>
+## 功能
+
+- **图片化帮助菜单**：发送 `/帮助` 自动生成包含所有已注册指令及说明的 PNG 图片
+- **动态添加指令**：管理员使用 `/帮助 add <指令>` 后，按提示发送描述即可实时添加
+- **动态删除指令**：管理员使用 `/帮助 remove <指令>` 即可删除
+- **权限控制**：添加/删除操作仅限配置中指定的管理员 ID
+- **跨平台字体适配**：自动检测系统并使用合适的中文字体，确保显示正常
+
+## 安装
+
+将本仓库克隆或下载到 AstrBot 的 `plugins` 目录，或在 AstrBot 插件市场搜索 `morehelp` 安装。
+
+## 配置
+
+在插件配置中设置 `admin_id`（管理员的 QQ 号或其他平台 ID 字符串），例如："admin_id": "123456789"
+
+## 使用
+
+| 命令 | 说明 |
+|------|------|
+| `/帮助` | 查看当前所有帮助指令（生成图片） |
+| `/帮助 add <指令>` | 添加一个新指令，随后按提示发送指令说明 |
+| `/帮助 remove <指令>` | 删除一个已添加的指令 |
+
+> 注意：添加与删除操作需要管理员权限，指令名称请勿带 `/` 前缀。
+
+## 示例
+
+1. 管理员发送：  
+   `/帮助 add 签到`  
+   插件回复：“请发送该指令的说明：”  
+   管理员发送：“每日签到获取积分”  
+   插件回复：“指令 签到 已成功添加。”
+
+2. 任意用户发送 `/帮助`，即可看到包含 `签到` 及说明的帮助图片。
 
 # Supports
 
