@@ -23,7 +23,6 @@ class HelpPlugin(Star):
         self.config = config
         self.admin_id = str(config.get("admin_id", ""))
 
-        self.font_path = self._get_font_path()
         logger.info(f"[MoreHelp] 插件初始化完成，管理员ID: {self.admin_id}，字体路径: {self.font_path}")
 
     # ===== 数据加载与保存 =====
