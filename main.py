@@ -5,7 +5,6 @@ import traceback
 from PIL import Image, ImageDraw, ImageFont
 from astrbot.api.event import AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
-from astrbot.api import filter
 
 @register("astrbot_plugin_morehelp", "YourName", "自定义帮助插件，支持指令增删并生成图片", "1.0.0")
 class HelpPlugin(Star):
@@ -50,9 +49,10 @@ class HelpPlugin(Star):
         return str(user_id) == self.admin_id
 
     def _get_system_font(self) -> str:
- 
+
         system = platform.system()
         font_paths = []
+
         if system == "Windows":
             font_dir = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")
             font_paths = [
@@ -73,27 +73,26 @@ class HelpPlugin(Star):
                 "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             ]
+
         for path in font_paths:
             if os.path.exists(path):
                 print(f"[MoreHelp] 使用系统路径找到字体: {path}")
                 return path
+
         print("[MoreHelp] 未找到任何中文字体，将使用默认字体。")
         return ""
 
-    @filter.on_message()
     async def run(self, event: AstrMessageEvent) -> MessageEventResult:
-        """插件主入口，通过 on_message 过滤器捕获所有消息"""
-        print(f"[MoreHelp] run 方法被调用，消息内容: '{event.get_message_text()}'")
         try:
             msg = event.get_message_text().strip()
             user_id = str(event.get_sender_id())
             session_id = event.get_session_id()
 
-            print(f"[MoreHelp] 处理消息: '{msg}' from {user_id} session {session_id}")
+            # 调试日志：输出接收到的消息
+            print(f"[MoreHelp] 收到消息: '{msg}' from user: {user_id}, session: {session_id}")
 
-            # 情况1：等待添加说明状态
+            # 情况1：用户正在等待输入指令说明（临时会话状态）
             if session_id in self.pending_add:
-                print(f"[MoreHelp] 检测到 session {session_id} 处于等待添加状态，指令: {self.pending_add[session_id]}")
                 if not self._is_admin(user_id):
                     del self.pending_add[session_id]
                     yield event.plain_result("权限不足，操作已取消。")
@@ -110,9 +109,9 @@ class HelpPlugin(Star):
                 yield event.plain_result(f"指令 {cmd_name} 已成功添加。")
                 return
 
-            # 情况2：匹配主命令
+            # 情况2：匹配主命令 /帮助 或 /help
             if msg.startswith("/帮助") or msg.startswith("/help"):
-                print(f"[MoreHelp] 匹配到命令: {msg}")
+                print(f"[MoreHelp] 命令匹配成功，用户: {user_id}，管理员检查: {self._is_admin(user_id)}")
                 if not self._is_admin(user_id):
                     yield event.plain_result(f"权限不足，仅管理员可用。当前用户ID: {user_id}，管理员ID: {self.admin_id}")
                     return
@@ -164,8 +163,6 @@ class HelpPlugin(Star):
                     yield event.plain_result("未知子命令，可用: add / remove")
                     return
 
-            # 非本插件命令，不响应
-            print(f"[MoreHelp] 命令不匹配，忽略。")
         except Exception as e:
             error_msg = f"插件运行异常: {str(e)}\n{traceback.format_exc()}"
             print(f"[MoreHelp] {error_msg}")
