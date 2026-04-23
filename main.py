@@ -15,6 +15,7 @@ class HelpPlugin(Star):
         self.commands_file = os.path.join(os.path.dirname(__file__), "commands.json")
         self.pending_add = {}  # 键为 session_id，值为 (cmd_key, cmd_display)
         self._load_commands()
+        self.font_path = "" 
 
         # 配置由框架自动注入
         if config is None:
@@ -80,6 +81,16 @@ class HelpPlugin(Star):
 
         logger.warning("[MoreHelp] 未找到任何中文字体，将使用默认字体。")
         return ""
+
+    def _get_font(self, size: int) -> ImageFont.FreeTypeFont:
+        """安全加载字体，失败则回退至默认字体。"""
+        font_path = self.font_path
+        if font_path:
+            try:
+                return ImageFont.truetype(font_path, size)
+            except Exception as e:
+                logger.error(f"[MoreHelp] 无法加载字体 {font_path}: {e}")
+        return ImageFont.load_default()
 
     # ===== 指令处理 =====
 
