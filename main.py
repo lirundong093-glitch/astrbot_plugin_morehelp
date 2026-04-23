@@ -96,6 +96,10 @@ class HelpPlugin(Star):
     # 主指令：仅响应精确的 "/帮助" 或 "/help"
     @filter.command("帮助")
     async def help_command(self, event: AstrMessageEvent):
+        msg = event.message_str.strip()
+        if msg:  # 有子命令，让 help_add_command / help_remove_command 去处理
+            return
+        
         user_id = str(event.get_sender_id())
         logger.info(f"[MoreHelp] 收到 /帮助 指令，来自用户: {user_id}")
 
