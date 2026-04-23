@@ -6,23 +6,23 @@ from PIL import Image, ImageDraw, ImageFont
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
-from astrbot.core.star.filter.permission import PermissionType  # 引入权限类型
+from astrbot.core.star.filter.permission import PermissionType
 
 @register("astrbot_plugin_morehelp", "Lucy", "自定义帮助插件，支持指令增删并生成图片", "1.0.0")
 class HelpPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
         self.commands_file = os.path.join(os.path.dirname(__file__), "commands.json")
-        self.pending_add = {}
+        self.pending_add = {}  # 键为 session_id，值为 (cmd_key, cmd_display)
         self._load_commands()
 
-        # 配置已由框架自动注入，无需手动读取 _conf_schema.json
+        # 配置由框架自动注入
         if config is None:
             config = {}
         self.config = config
         self.admin_id = str(config.get("admin_id", ""))
 
-        self.font_path = self._get_system_font()
+        self.font_path = self._get_font_path()
         logger.info(f"[MoreHelp] 插件初始化完成，管理员ID: {self.admin_id}，字体路径: {self.font_path}")
 
     # ===== 数据加载与保存 =====
@@ -83,21 +83,15 @@ class HelpPlugin(Star):
 
     # ===== 指令处理 =====
 
-    # 主指令：所有人可用（无 permission 参数，默认为无权限限制）
+    # 主指令：仅响应精确的 "/帮助" 或 "/help"
     @filter.command("帮助")
     async def help_command(self, event: AstrMessageEvent):
-
-        def _get_font(self, size: int) -> ImageFont.FreeTypeFont:
-            """安全加载字体，若失败则回退到默认字体。"""
-            font_path = self._get_font_path()
-            if font_path:
-                try:
-                    return ImageFont.truetype(font_path, size)
-                except Exception as e:
-                    logger.error(f"[MoreHelp] 无法加载字体 {font_path}: {e}")
-            return ImageFont.load_default()
-        
         """查看帮助图片，所有用户均可使用。"""
+        msg = event.message_str.strip()
+        # 排除子命令（如 "/帮助 add"）
+        if msg not in ("/帮助", "/help"):
+            return
+
         user_id = str(event.get_sender_id())
         logger.info(f"[MoreHelp] 收到 /帮助 指令，来自用户: {user_id}")
 
@@ -108,101 +102,98 @@ class HelpPlugin(Star):
             else:
                 yield event.plain_result("生成帮助图片失败：图片文件不存在。")
         except Exception as e:
-            error_msg = f"生成帮助图片时出错: {str(e)}"
-            logger.error(f"[MoreHelp] {error_msg}\n{traceback.format_exc()}")
-            yield event.plain_result(error_msg)
+            logger.error(f"[MoreHelp] 生成帮助图片出错: {e}\n{traceback.format_exc()}")
+            yield event.plain_result(f"生成帮助图片时出错: {str(e)}")
 
-    # 子指令：仅管理员可用
+    # 添加指令：管理员专用
     @filter.command("帮助 add", permission=PermissionType.ADMIN)
     async def help_add_command(self, event: AstrMessageEvent):
-        """添加新指令（管理员）。"""
-        user_id = str(event.get_sender_id())
-        session_id = event.get_session_id()
-
+        """管理员添加新指令。"""
         parts = event.message_str.strip().split()
         if len(parts) < 3:
             yield event.plain_result("用法: /帮助 add <指令名称>")
             return
 
-        cmd_name = parts[2]
-        if not cmd_name.startswith("/"):
-            cmd_name = "/" + cmd_name
+        raw_cmd = parts[2].strip()
+        if not raw_cmd:
+            yield event.plain_result("用法: /帮助 add <指令名称>")
+            return
 
-        self.pending_add[session_id] = cmd_name
-        yield event.plain_result(f"请输入指令 {cmd_name} 的说明：")
+        # 统一内部存储格式：始终以 "/" 开头
+        cmd_display = raw_cmd.lstrip("/")  # 用户看到的名称（无 /）
+        cmd_key = "/" + cmd_display        # 存储及图片中使用的名称
 
-    # 子指令：仅管理员可用
+        session_id = event.get_session_id()
+        # 暂存显示名，稍后用于成功提示
+        self.pending_add[session_id] = (cmd_key, cmd_display)
+
+        # 先确认已记录指令名，再请求说明
+        yield event.plain_result(f"已记录指令名称：{cmd_display}")
+        yield event.plain_result("请发送该指令的说明：")
+
+    # 删除指令：管理员专用
     @filter.command("帮助 remove", permission=PermissionType.ADMIN)
     async def help_remove_command(self, event: AstrMessageEvent):
-        """删除指令（管理员）。"""
-        user_id = str(event.get_sender_id())
-
+        """管理员删除指定指令。"""
         parts = event.message_str.strip().split()
         if len(parts) < 3:
             yield event.plain_result("用法: /帮助 remove <指令名称>")
             return
 
-        cmd_name = parts[2]
-        if not cmd_name.startswith("/"):
-            cmd_name = "/" + cmd_name
+        raw_cmd = parts[2].strip()
+        if not raw_cmd:
+            yield event.plain_result("用法: /帮助 remove <指令名称>")
+            return
 
-        if cmd_name in self.commands:
-            del self.commands[cmd_name]
+        # 统一内部存储格式
+        cmd_display = raw_cmd.lstrip("/")
+        cmd_key = "/" + cmd_display
+
+        if cmd_key in self.commands:
+            del self.commands[cmd_key]
             self._save_commands()
-            yield event.plain_result(f"指令 {cmd_name} 已删除。")
+            yield event.plain_result(f"指令 {cmd_display} 已删除。")
         else:
-            yield event.plain_result(f"未找到指令 {cmd_name}，请检查输入是否正确。")
+            yield event.plain_result(f"未找到指令 {cmd_display}，请检查输入是否正确。")
 
-    # 监听所有消息，用于处理“添加指令说明”的第二步
+    # 监听所有消息，用于接收“添加指令”的第二步说明
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def handle_message(self, event: AstrMessageEvent):
-        """监听所有消息，处理添加指令的第二步骤（接收说明）。"""
+        """处理添加指令的第二步骤（接收用户发送的说明）。"""
+        # 忽略机器人自己发出的消息，避免误触发
+        if event.get_self_id() == event.get_sender_id():
+            return
+
         session_id = event.get_session_id()
         if session_id not in self.pending_add:
-            return  # 不是处于等待状态的用户，忽略
+            return
 
-        user_id = str(event.get_sender_id())
-        # 手动校验权限（因为该监听器不是 command 装饰器，无法通过 permission 参数控制）
-        if not self._is_admin(user_id):
+        # 权限校验（手动，因为该监听器非 command 装饰器）
+        if not self._is_admin(event.get_sender_id()):
             del self.pending_add[session_id]
             yield event.plain_result("权限不足，操作已取消。")
             return
 
-        cmd_name = self.pending_add.pop(session_id)
+        cmd_key, cmd_display = self.pending_add.pop(session_id)
         description = event.message_str.strip()
         if not description:
-            yield event.plain_result("说明不能为空，添加操作已取消。")
+            yield event.plain_result("说明不能为空，操作已取消。")
             return
 
-        self.commands[cmd_name] = description
+        self.commands[cmd_key] = description
         self._save_commands()
-        yield event.plain_result(f"指令 {cmd_name} 已成功添加。")
+        yield event.plain_result(f"指令 {cmd_display} 已成功添加。")
 
-    # ===== 图片生成 =====
+    # ===== 帮助图片生成 =====
     def _generate_help_image(self) -> str:
         img_path = os.path.join(os.path.dirname(__file__), "help_temp.png")
         try:
-            font = None
-            if self.font_path:
-                try:
-                    font = ImageFont.truetype(self.font_path, 18)
-                except Exception as e:
-                    logger.error(f"[MoreHelp] 加载字体失败 {self.font_path}: {e}，使用默认字体。")
-                    font = ImageFont.load_default()
-            else:
-                font = ImageFont.load_default()
+            font = self._get_font(18)
+            title_font = self._get_font(20)
 
             if not self.commands:
                 img = Image.new("RGB", (400, 100), color="white")
                 draw = ImageDraw.Draw(img)
-                title_font = None
-                if self.font_path:
-                    try:
-                        title_font = ImageFont.truetype(self.font_path, 20)
-                    except:
-                        title_font = font
-                else:
-                    title_font = font
                 draw.text((20, 40), "暂无帮助指令", fill="black", font=title_font)
             else:
                 line_height = 30
