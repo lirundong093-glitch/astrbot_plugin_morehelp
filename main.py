@@ -97,6 +97,7 @@ class HelpPlugin(Star):
     @filter.command("帮助")
     async def help_command(self, event: AstrMessageEvent):
         msg = event.message_str.strip()
+        logger.debug(f"[MoreHelp] help_command msg = '{msg}'")
         if msg.startswith(('add', 'remove')):
             return
         
