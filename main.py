@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw, ImageFont
 from astrbot.api.event import AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 
-@register("astrbot_plugin_morehelp", "YourName", "自定义帮助插件，支持指令增删并生成图片", "1.0.0")
+@register("astrbot_plugin_morehelp", "Lucy", "自定义帮助插件，支持指令增删并生成图片", "1.0.0")
 class HelpPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
