@@ -50,30 +50,6 @@ class HelpPlugin(Star):
         return str(user_id) == self.admin_id
 
     def _get_system_font(self) -> str:
-        try:
-            from matplotlib import font_manager
-            font_names = []
-            system = platform.system()
-            if system == "Windows":
-                font_names = ["Microsoft YaHei", "SimHei", "SimSun"]
-            elif system == "Darwin":
-                font_names = ["PingFang SC", "Heiti SC", "STHeiti"]
-            else:
-                font_names = ["Noto Sans CJK SC", "WenQuanYi Micro Hei", "DejaVu Sans"]
-
-            for name in font_names:
-                try:
-                    font_path = font_manager.findfont(name, fallback_to_default=False)
-                    if font_path and os.path.exists(font_path):
-                        print(f"[MoreHelp] 使用 matplotlib 找到字体: {font_path}")
-                        return font_path
-                except:
-                    continue
-        except ImportError:
-            print("[MoreHelp] matplotlib 未安装，回退到系统路径检测。")
-        except Exception as e:
-            print(f"[MoreHelp] matplotlib 字体查找失败: {e}")
-
         system = platform.system()
         font_paths = []
 
