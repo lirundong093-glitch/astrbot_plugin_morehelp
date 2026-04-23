@@ -112,7 +112,6 @@ class HelpPlugin(Star):
     # 添加指令：管理员专用
     @filter.command("帮助 add", permission=PermissionType.ADMIN)
     async def help_add_command(self, event: AstrMessageEvent):
-        """管理员添加新指令。"""
         parts = event.message_str.strip().split()
         if len(parts) < 3:
             yield event.plain_result("用法: /帮助 add <指令名称>")
@@ -123,17 +122,15 @@ class HelpPlugin(Star):
             yield event.plain_result("用法: /帮助 add <指令名称>")
             return
 
-        # 统一内部存储格式：始终以 "/" 开头
-        cmd_display = raw_cmd.lstrip("/")  # 用户看到的名称（无 /）
-        cmd_key = "/" + cmd_display        # 存储及图片中使用的名称
+        cmd_display = raw_cmd.lstrip("/")
+        cmd_key = "/" + cmd_display
 
         session_id = event.get_session_id()
-        # 暂存显示名，稍后用于成功提示
         self.pending_add[session_id] = (cmd_key, cmd_display)
 
-        # 先确认已记录指令名，再请求说明
-        yield event.plain_result(f"已记录指令名称：{cmd_display}")
+        # 只发送一次提示
         yield event.plain_result("请发送该指令的说明：")
+
 
     # 删除指令：管理员专用
     @filter.command("帮助 remove", permission=PermissionType.ADMIN)
@@ -163,16 +160,14 @@ class HelpPlugin(Star):
     # 监听所有消息，用于接收“添加指令”的第二步说明
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def handle_message(self, event: AstrMessageEvent):
-        """处理添加指令的第二步骤（接收用户发送的说明）。"""
-        # 忽略机器人自己发出的消息，避免误触发
-        if event.get_self_id() == event.get_sender_id():
+        # 忽略机器人自己发送的消息（使用 is_self 更可靠）
+        if event.is_self():
             return
 
         session_id = event.get_session_id()
         if session_id not in self.pending_add:
             return
 
-        # 权限校验（手动，因为该监听器非 command 装饰器）
         if not self._is_admin(event.get_sender_id()):
             del self.pending_add[session_id]
             yield event.plain_result("权限不足，操作已取消。")
