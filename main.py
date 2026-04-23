@@ -5,21 +5,20 @@ import traceback
 from PIL import Image, ImageDraw, ImageFont
 from astrbot.api.event import AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
+from astrbot.api import filter
 
 @register("astrbot_plugin_morehelp", "YourName", "自定义帮助插件，支持指令增删并生成图片", "1.0.0")
 class HelpPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         self.commands_file = os.path.join(os.path.dirname(__file__), "commands.json")
-        self.pending_add = {}  # 暂存等待输入说明的用户 session_id -> cmd_name
+        self.pending_add = {}
         self._load_commands()
         self._load_config()
-        # 初始化时检测系统字体
         self.font_path = self._get_system_font()
         print(f"[MoreHelp] 插件初始化完成，管理员ID: {self.admin_id}，字体路径: {self.font_path}")
 
     def _load_config(self):
-        """从 _conf_schema.json 读取管理员ID"""
         config_path = os.path.join(os.path.dirname(__file__), "_conf_schema.json")
         try:
             with open(config_path, "r", encoding="utf-8") as f:
@@ -30,7 +29,6 @@ class HelpPlugin(Star):
         self.admin_id = str(self.config.get("admin_id", ""))
 
     def _load_commands(self):
-        """加载已保存的指令数据"""
         if os.path.exists(self.commands_file):
             try:
                 with open(self.commands_file, "r", encoding="utf-8") as f:
@@ -52,34 +50,9 @@ class HelpPlugin(Star):
         return str(user_id) == self.admin_id
 
     def _get_system_font(self) -> str:
-        """智能检测系统默认中文字体"""
-        try:
-            from matplotlib import font_manager
-            font_names = []
-            system = platform.system()
-            if system == "Windows":
-                font_names = ["Microsoft YaHei", "SimHei", "SimSun"]
-            elif system == "Darwin":  # macOS
-                font_names = ["PingFang SC", "Heiti SC", "STHeiti"]
-            else:  # Linux
-                font_names = ["Noto Sans CJK SC", "WenQuanYi Micro Hei", "DejaVu Sans"]
-
-            for name in font_names:
-                try:
-                    font_path = font_manager.findfont(name, fallback_to_default=False)
-                    if font_path and os.path.exists(font_path):
-                        print(f"[MoreHelp] 使用 matplotlib 找到字体: {font_path}")
-                        return font_path
-                except:
-                    continue
-        except ImportError:
-            print("[MoreHelp] matplotlib 未安装，回退到系统路径检测。")
-        except Exception as e:
-            print(f"[MoreHelp] matplotlib 字体查找失败: {e}")
-
+ 
         system = platform.system()
         font_paths = []
-
         if system == "Windows":
             font_dir = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")
             font_paths = [
@@ -100,27 +73,27 @@ class HelpPlugin(Star):
                 "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             ]
-
         for path in font_paths:
             if os.path.exists(path):
                 print(f"[MoreHelp] 使用系统路径找到字体: {path}")
                 return path
-
         print("[MoreHelp] 未找到任何中文字体，将使用默认字体。")
         return ""
 
+    @filter.on_message()
     async def run(self, event: AstrMessageEvent) -> MessageEventResult:
-        """插件主入口"""
+        """插件主入口，通过 on_message 过滤器捕获所有消息"""
+        print(f"[MoreHelp] run 方法被调用，消息内容: '{event.get_message_text()}'")
         try:
             msg = event.get_message_text().strip()
             user_id = str(event.get_sender_id())
             session_id = event.get_session_id()
 
-            # 调试日志：输出接收到的消息
-            print(f"[MoreHelp] 收到消息: '{msg}' from user: {user_id}, session: {session_id}")
+            print(f"[MoreHelp] 处理消息: '{msg}' from {user_id} session {session_id}")
 
-            # 情况1：用户正在等待输入指令说明（临时会话状态）
+            # 情况1：等待添加说明状态
             if session_id in self.pending_add:
+                print(f"[MoreHelp] 检测到 session {session_id} 处于等待添加状态，指令: {self.pending_add[session_id]}")
                 if not self._is_admin(user_id):
                     del self.pending_add[session_id]
                     yield event.plain_result("权限不足，操作已取消。")
@@ -137,8 +110,9 @@ class HelpPlugin(Star):
                 yield event.plain_result(f"指令 {cmd_name} 已成功添加。")
                 return
 
-            # 情况2：匹配主命令 /帮助 或 /help
+            # 情况2：匹配主命令
             if msg.startswith("/帮助") or msg.startswith("/help"):
+                print(f"[MoreHelp] 匹配到命令: {msg}")
                 if not self._is_admin(user_id):
                     yield event.plain_result(f"权限不足，仅管理员可用。当前用户ID: {user_id}，管理员ID: {self.admin_id}")
                     return
@@ -146,7 +120,6 @@ class HelpPlugin(Star):
                 parts = msg.split(maxsplit=2)
 
                 if len(parts) == 1:
-                    # 生成帮助图片
                     try:
                         img_path = self._generate_help_image()
                         if img_path and os.path.exists(img_path):
@@ -191,14 +164,14 @@ class HelpPlugin(Star):
                     yield event.plain_result("未知子命令，可用: add / remove")
                     return
 
-            # 非本插件命令，忽略
+            # 非本插件命令，不响应
+            print(f"[MoreHelp] 命令不匹配，忽略。")
         except Exception as e:
             error_msg = f"插件运行异常: {str(e)}\n{traceback.format_exc()}"
             print(f"[MoreHelp] {error_msg}")
             yield event.plain_result(f"插件内部错误: {str(e)}")
 
     def _generate_help_image(self) -> str:
-        """生成白色背景的帮助图片，返回临时文件路径"""
         img_path = os.path.join(os.path.dirname(__file__), "help_temp.png")
         try:
             font = None
@@ -247,8 +220,7 @@ class HelpPlugin(Star):
             return img_path
         except Exception as e:
             print(f"[MoreHelp] 生成图片失败: {e}\n{traceback.format_exc()}")
-            raise  # 重新抛出，由上层 run 方法捕获并返回给用户
+            raise
 
     async def terminate(self):
-        """插件卸载时的清理工作"""
         pass
