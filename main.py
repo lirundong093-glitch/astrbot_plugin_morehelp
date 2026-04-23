@@ -6,18 +6,16 @@ from PIL import Image, ImageDraw, ImageFont
 from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
-from astrbot.core.star.filter.permission import PermissionType
 
 @register("astrbot_plugin_morehelp", "Lucy", "自定义帮助插件，支持指令增删并生成图片", "1.0.0")
 class HelpPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
         self.commands_file = os.path.join(os.path.dirname(__file__), "commands.json")
-        self.pending_add = {}  # 键为 session_id，值为 (cmd_key, cmd_display)
+        self.pending_add = {}
         self._load_commands()
         self.font_path = self._get_system_font()
 
-        # 配置由框架自动注入
         if config is None:
             config = {}
         self.config = config
@@ -25,7 +23,7 @@ class HelpPlugin(Star):
 
         logger.info(f"[MoreHelp] 插件初始化完成，管理员ID: {self.admin_id}，字体路径: {self.font_path}")
 
-    # ===== 数据加载与保存 =====
+    # ----- 数据层 -----
     def _load_commands(self):
         if os.path.exists(self.commands_file):
             try:
@@ -47,10 +45,10 @@ class HelpPlugin(Star):
     def _is_admin(self, user_id: str) -> bool:
         return str(user_id) == self.admin_id
 
+    # ----- 字体 -----
     def _get_system_font(self) -> str:
         system = platform.system()
         font_paths = []
-
         if system == "Windows":
             font_dir = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")
             font_paths = [
@@ -72,17 +70,14 @@ class HelpPlugin(Star):
                 "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             ]
-
         for path in font_paths:
             if os.path.exists(path):
                 logger.info(f"[MoreHelp] 使用系统路径找到字体: {path}")
                 return path
-
         logger.warning("[MoreHelp] 未找到任何中文字体，将使用默认字体。")
         return ""
 
     def _get_font(self, size: int) -> ImageFont.FreeTypeFont:
-        """安全加载字体，失败则回退至默认字体。"""
         font_path = self.font_path
         if font_path:
             try:
@@ -91,81 +86,78 @@ class HelpPlugin(Star):
                 logger.error(f"[MoreHelp] 无法加载字体 {font_path}: {e}")
         return ImageFont.load_default()
 
-    # ===== 指令处理 =====
-
-    # 主指令：仅响应精确的 "/帮助" 或 "/help"
+    # ===== 唯一入口 =====
     @filter.command("帮助")
     async def help_command(self, event: AstrMessageEvent):
+        """
+        统一处理 /帮助、/帮助 add、/帮助 remove
+        """
         msg = event.message_str.strip()
-        logger.debug(f"[MoreHelp] help_command msg = '{msg}'")
-        if msg.startswith(('add', 'remove')):
-            return
-        
-        user_id = str(event.get_sender_id())
-        logger.info(f"[MoreHelp] 收到 /帮助 指令，来自用户: {user_id}")
+        # 去掉可能的指令前缀（例如消息可能是“帮助 add weather”或“/帮助 add weather”）
+        # 将第一个 token 如果等于“帮助”或“/帮助”则跳过，取下一个作为子命令
+        tokens = msg.split()
+        if tokens and tokens[0] in ("帮助", "/帮助"):
+            tokens = tokens[1:]   # 移除命令本身
 
-        try:
-            img_path = self._generate_help_image()
-            if img_path and os.path.exists(img_path):
-                yield event.image_result(img_path)
+        if not tokens:
+            # 纯 /帮助
+            user_id = str(event.get_sender_id())
+            logger.info(f"[MoreHelp] 收到 /帮助 指令，来自用户: {user_id}")
+            try:
+                img_path = self._generate_help_image()
+                if img_path and os.path.exists(img_path):
+                    yield event.image_result(img_path)
+                else:
+                    yield event.plain_result("生成帮助图片失败：图片文件不存在。")
+            except Exception as e:
+                logger.error(f"[MoreHelp] 生成帮助图片出错: {e}\n{traceback.format_exc()}")
+                yield event.plain_result(f"生成帮助图片时出错: {str(e)}")
+            return
+
+        sub_cmd = tokens[0].lower()
+        args = tokens[1:]
+
+        if sub_cmd == "add":
+            # 管理员权限检查
+            if not self._is_admin(event.get_sender_id()):
+                yield event.plain_result("权限不足，仅管理员可添加指令。")
+                return
+            if not args:
+                yield event.plain_result("用法: /帮助 add <指令名称>")
+                return
+            raw_cmd = args[0].strip()
+            cmd_display = raw_cmd.lstrip("/")
+            cmd_key = "/" + cmd_display
+
+            session_id = event.get_session_id()
+            self.pending_add[session_id] = (cmd_key, cmd_display)
+            yield event.plain_result("请发送该指令的说明：")
+
+        elif sub_cmd == "remove":
+            if not self._is_admin(event.get_sender_id()):
+                yield event.plain_result("权限不足，仅管理员可删除指令。")
+                return
+            if not args:
+                yield event.plain_result("用法: /帮助 remove <指令名称>")
+                return
+            raw_cmd = args[0].strip()
+            cmd_display = raw_cmd.lstrip("/")
+            cmd_key = "/" + cmd_display
+
+            if cmd_key in self.commands:
+                del self.commands[cmd_key]
+                self._save_commands()
+                yield event.plain_result(f"指令 {cmd_display} 已删除。")
             else:
-                yield event.plain_result("生成帮助图片失败：图片文件不存在。")
-        except Exception as e:
-            logger.error(f"[MoreHelp] 生成帮助图片出错: {e}\n{traceback.format_exc()}")
-            yield event.plain_result(f"生成帮助图片时出错: {str(e)}")
+                yield event.plain_result(f"未找到指令 {cmd_display}，请检查输入是否正确。")
 
-    # 添加指令：管理员专用
-    @filter.command("帮助 add", permission=PermissionType.ADMIN)
-    async def help_add_command(self, event: AstrMessageEvent):
-        parts = event.message_str.strip().split()
-        if len(parts) < 3:
-            yield event.plain_result("用法: /帮助 add <指令名称>")
-            return
-
-        raw_cmd = parts[2].strip()
-        if not raw_cmd:
-            yield event.plain_result("用法: /帮助 add <指令名称>")
-            return
-
-        cmd_display = raw_cmd.lstrip("/")
-        cmd_key = "/" + cmd_display
-
-        session_id = event.get_session_id()
-        self.pending_add[session_id] = (cmd_key, cmd_display)
-
-        # 只发送一次提示
-        yield event.plain_result("请发送该指令的说明：")
-
-
-    # 删除指令：管理员专用
-    @filter.command("帮助 remove", permission=PermissionType.ADMIN)
-    async def help_remove_command(self, event: AstrMessageEvent):
-        """管理员删除指定指令。"""
-        parts = event.message_str.strip().split()
-        if len(parts) < 3:
-            yield event.plain_result("用法: /帮助 remove <指令名称>")
-            return
-
-        raw_cmd = parts[2].strip()
-        if not raw_cmd:
-            yield event.plain_result("用法: /帮助 remove <指令名称>")
-            return
-
-        # 统一内部存储格式
-        cmd_display = raw_cmd.lstrip("/")
-        cmd_key = "/" + cmd_display
-
-        if cmd_key in self.commands:
-            del self.commands[cmd_key]
-            self._save_commands()
-            yield event.plain_result(f"指令 {cmd_display} 已删除。")
         else:
-            yield event.plain_result(f"未找到指令 {cmd_display}，请检查输入是否正确。")
+            yield event.plain_result(f"未知子命令: {sub_cmd}，可用命令: add, remove")
 
-    # 监听所有消息，用于接收“添加指令”的第二步说明
+    # ===== 第二步：接收指令说明 =====
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def handle_message(self, event: AstrMessageEvent):
-        # 1. 忽略机器人自己发的消息（类型统一为字符串后比较）
+        # 严格过滤机器人自己的消息（字符串类型比较）
         if str(event.get_self_id()) == str(event.get_sender_id()):
             return
 
@@ -181,7 +173,7 @@ class HelpPlugin(Star):
         cmd_key, cmd_display = self.pending_add.pop(session_id)
         description = event.message_str.strip()
 
-        # 2. 兜底：如果消息内容明显是系统提示，直接忽略
+        # 兜底过滤：忽略可能由机器人自己发出的提示文本
         if not description or description.startswith("请发送"):
             yield event.plain_result("说明不能为空，操作已取消。")
             return
@@ -190,7 +182,7 @@ class HelpPlugin(Star):
         self._save_commands()
         yield event.plain_result(f"指令 {cmd_display} 已成功添加。")
 
-    # ===== 帮助图片生成 =====
+    # ===== 图片生成 =====
     def _generate_help_image(self) -> str:
         img_path = os.path.join(os.path.dirname(__file__), "help_temp.png")
         try:
