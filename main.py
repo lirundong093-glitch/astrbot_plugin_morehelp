@@ -3,7 +3,7 @@ import os
 import platform
 import traceback
 from PIL import Image, ImageDraw, ImageFont
-from astrbot.api.event import AstrMessageEvent, MessageEventResult
+from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
 
 @register("astrbot_plugin_morehelp", "YourName", "自定义帮助插件，支持指令增删并生成图片", "1.0.0")
@@ -17,6 +17,7 @@ class HelpPlugin(Star):
         self.font_path = self._get_system_font()
         print(f"[MoreHelp] 插件初始化完成，管理员ID: {self.admin_id}，字体路径: {self.font_path}")
 
+    # ----- 配置与数据加载 -----
     def _load_config(self):
         config_path = os.path.join(os.path.dirname(__file__), "_conf_schema.json")
         try:
@@ -82,16 +83,17 @@ class HelpPlugin(Star):
         print("[MoreHelp] 未找到任何中文字体，将使用默认字体。")
         return ""
 
-    async def run(self, event: AstrMessageEvent) -> MessageEventResult:
+    # ----- 消息处理入口（使用装饰器确保被调用）-----
+    @filter.on_message(priority=10)
+    async def handle_message(self, event: AstrMessageEvent):
         try:
             msg = event.get_message_text().strip()
             user_id = str(event.get_sender_id())
             session_id = event.get_session_id()
 
-            # 调试日志：输出接收到的消息
             print(f"[MoreHelp] 收到消息: '{msg}' from user: {user_id}, session: {session_id}")
 
-            # 情况1：用户正在等待输入指令说明（临时会话状态）
+            # 情况1：用户正在等待输入指令说明
             if session_id in self.pending_add:
                 if not self._is_admin(user_id):
                     del self.pending_add[session_id]
@@ -109,9 +111,9 @@ class HelpPlugin(Star):
                 yield event.plain_result(f"指令 {cmd_name} 已成功添加。")
                 return
 
-            # 情况2：匹配主命令 /帮助 或 /help
+            # 情况2：匹配主命令
             if msg.startswith("/帮助") or msg.startswith("/help"):
-                print(f"[MoreHelp] 命令匹配成功，用户: {user_id}，管理员检查: {self._is_admin(user_id)}")
+                print(f"[MoreHelp] 命令匹配成功，用户: {user_id}")
                 if not self._is_admin(user_id):
                     yield event.plain_result(f"权限不足，仅管理员可用。当前用户ID: {user_id}，管理员ID: {self.admin_id}")
                     return
