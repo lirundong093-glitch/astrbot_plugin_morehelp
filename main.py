@@ -164,8 +164,8 @@ class HelpPlugin(Star):
     # 监听所有消息，用于接收“添加指令”的第二步说明
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def handle_message(self, event: AstrMessageEvent):
-        # 忽略机器人自己发送的消息（使用 is_self 更可靠）
-        if event.is_self():
+        # 1. 忽略机器人自己发的消息（类型统一为字符串后比较）
+        if str(event.get_self_id()) == str(event.get_sender_id()):
             return
 
         session_id = event.get_session_id()
@@ -179,7 +179,9 @@ class HelpPlugin(Star):
 
         cmd_key, cmd_display = self.pending_add.pop(session_id)
         description = event.message_str.strip()
-        if not description:
+
+        # 2. 兜底：如果消息内容明显是系统提示，直接忽略
+        if not description or description.startswith("请发送"):
             yield event.plain_result("说明不能为空，操作已取消。")
             return
 
