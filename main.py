@@ -97,7 +97,7 @@ class HelpPlugin(Star):
     @filter.command("帮助")
     async def help_command(self, event: AstrMessageEvent):
         msg = event.message_str.strip()
-        if msg:  # 有子命令，让 help_add_command / help_remove_command 去处理
+        if msg.startswith(('add', 'remove')):
             return
         
         user_id = str(event.get_sender_id())
