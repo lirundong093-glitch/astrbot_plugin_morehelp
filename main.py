@@ -152,7 +152,7 @@ class HelpPlugin(Star):
             yield event.plain_result(f"未找到指令 {cmd_name}，请检查输入是否正确。")
 
     # 监听所有消息，用于处理“添加指令说明”的第二步。
-    @filter.any()
+    @filter.event_message_type(filter.EventMessageType.ALL)
     async def handle_message(self, event: AstrMessageEvent):
         session_id = event.get_session_id()
         if session_id not in self.pending_add:
