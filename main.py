@@ -212,21 +212,37 @@ class HelpPlugin(Star):
                 draw.text((20, 40), "暂无帮助指令", fill="black", font=title_font)
             else:
                 line_height = 30
-                max_text_width = 0
-                for cmd, desc in self.commands.items():
-                    text = f"{cmd}    {desc}"
-                    bbox = font.getbbox(text)
-                    text_width = bbox[2] - bbox[0]
-                    if text_width > max_text_width:
-                        max_text_width = text_width
-                img_width = max(max_text_width + 40, 300)
+                # 计算所有指令名称的最大绘制宽度
+                max_cmd_width = 0
+                for cmd in self.commands.keys():
+                    bbox = font.getbbox(cmd)          # 仅计算指令名字本身
+                    cmd_width = bbox[2] - bbox[0]
+                    if cmd_width > max_cmd_width:
+                        max_cmd_width = cmd_width
+
+                # 说明文字的起始 x 坐标（指令最大宽度 + 右侧间距）
+                desc_x = 20 + max_cmd_width + 15   # 15 是额外间距
+
+                # 计算整张图片的宽度：说明从 desc_x 开始，需要能容纳最长的说明文本
+                max_desc_width = 0
+                for desc in self.commands.values():
+                    bbox = font.getbbox(desc)
+                    desc_width = bbox[2] - bbox[0]
+                    if desc_width > max_desc_width:
+                        max_desc_width = desc_width
+
+                img_width = max(desc_x + max_desc_width + 20, 300)
                 img_height = len(self.commands) * line_height + 20
+
                 img = Image.new("RGB", (img_width, img_height), color="white")
                 draw = ImageDraw.Draw(img)
+
                 y = 10
                 for cmd, desc in self.commands.items():
-                    text = f"{cmd}    {desc}"
-                    draw.text((20, y), text, fill="black", font=font)
+                    # 绘制指令名称（左对齐）
+                    draw.text((20, y), cmd, fill="black", font=font)
+                    # 绘制说明（从统一位置开始，保证对齐）
+                    draw.text((desc_x, y), desc, fill="black", font=font)
                     y += line_height
 
             img.save(img_path)
@@ -235,6 +251,7 @@ class HelpPlugin(Star):
         except Exception as e:
             logger.error(f"[MoreHelp] 生成图片失败: {e}\n{traceback.format_exc()}")
             raise
+
 
     async def terminate(self):
         pass
