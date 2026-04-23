@@ -15,6 +15,7 @@ class HelpPlugin(Star):
         self.pending_add = {}
         self._load_commands()
         self.font_path = self._get_system_font()
+        self.pending_add_skip_msg = {}
 
         if config is None:
             config = {}
@@ -131,6 +132,7 @@ class HelpPlugin(Star):
 
             session_id = event.get_session_id()
             self.pending_add[session_id] = (cmd_key, cmd_display)
+            self.pending_add_skip_msg[session_id] = event.message_str.strip()
             yield event.plain_result("请发送该指令的说明：")
 
         elif sub_cmd == "remove":
@@ -163,11 +165,14 @@ class HelpPlugin(Star):
 
         session_id = event.get_session_id()
         if session_id not in self.pending_add:
+            if session_id in self.pending_add_skip_msg and event.message_str.strip() == self.pending_add_skip_msg[session_id]:
+                return
             return
 
         if not self._is_admin(event.get_sender_id()):
             del self.pending_add[session_id]
             yield event.plain_result("权限不足，操作已取消。")
+            self.pending_add_skip_msg.pop(session_id, None)
             return
 
         cmd_key, cmd_display = self.pending_add.pop(session_id)
@@ -176,11 +181,13 @@ class HelpPlugin(Star):
         # 兜底过滤：忽略可能由机器人自己发出的提示文本
         if not description or description.startswith("请发送"):
             yield event.plain_result("说明不能为空，操作已取消。")
+            self.pending_add_skip_msg.pop(session_id, None)
             return
 
         self.commands[cmd_key] = description
         self._save_commands()
         yield event.plain_result(f"指令 {cmd_display} 已成功添加。")
+        self.pending_add_skip_msg.pop(session_id, None)
 
     # ===== 图片生成 =====
     def _generate_help_image(self) -> str:
