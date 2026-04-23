@@ -1,0 +1,7 @@
+{
+  "admin_id": {
+    "type": "string",
+    "description": "管理员账号ID",
+    "default": ""
+  }
+}
