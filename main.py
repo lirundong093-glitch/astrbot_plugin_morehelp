@@ -1,6 +1,7 @@
 import json
 import os
 import platform
+import traceback
 from PIL import Image, ImageDraw, ImageFont
 from astrbot.api.event import AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
@@ -15,6 +16,7 @@ class HelpPlugin(Star):
         self._load_config()
         # 初始化时检测系统字体
         self.font_path = self._get_system_font()
+        print(f"[MoreHelp] 插件初始化完成，管理员ID: {self.admin_id}，字体路径: {self.font_path}")
 
     def _load_config(self):
         """从 _conf_schema.json 读取管理员ID"""
@@ -22,7 +24,8 @@ class HelpPlugin(Star):
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 self.config = json.load(f)
-        except Exception:
+        except Exception as e:
+            print(f"[MoreHelp] 加载配置文件失败: {e}")
             self.config = {"admin_id": ""}
         self.admin_id = str(self.config.get("admin_id", ""))
 
@@ -32,7 +35,8 @@ class HelpPlugin(Star):
             try:
                 with open(self.commands_file, "r", encoding="utf-8") as f:
                     self.commands = json.load(f)
-            except Exception:
+            except Exception as e:
+                print(f"[MoreHelp] 加载指令文件失败: {e}")
                 self.commands = {}
         else:
             self.commands = {}
@@ -48,23 +52,48 @@ class HelpPlugin(Star):
         return str(user_id) == self.admin_id
 
     def _get_system_font(self) -> str:
+        """智能检测系统默认中文字体"""
+        try:
+            from matplotlib import font_manager
+            font_names = []
+            system = platform.system()
+            if system == "Windows":
+                font_names = ["Microsoft YaHei", "SimHei", "SimSun"]
+            elif system == "Darwin":  # macOS
+                font_names = ["PingFang SC", "Heiti SC", "STHeiti"]
+            else:  # Linux
+                font_names = ["Noto Sans CJK SC", "WenQuanYi Micro Hei", "DejaVu Sans"]
+
+            for name in font_names:
+                try:
+                    font_path = font_manager.findfont(name, fallback_to_default=False)
+                    if font_path and os.path.exists(font_path):
+                        print(f"[MoreHelp] 使用 matplotlib 找到字体: {font_path}")
+                        return font_path
+                except:
+                    continue
+        except ImportError:
+            print("[MoreHelp] matplotlib 未安装，回退到系统路径检测。")
+        except Exception as e:
+            print(f"[MoreHelp] matplotlib 字体查找失败: {e}")
+
         system = platform.system()
         font_paths = []
 
         if system == "Windows":
             font_dir = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")
             font_paths = [
-                os.path.join(font_dir, "msyh.ttc"),      # Microsoft YaHei
-                os.path.join(font_dir, "simhei.ttf"),    # SimHei
-                os.path.join(font_dir, "simsun.ttc"),    # SimSun
+                os.path.join(font_dir, "msyh.ttc"),
+                os.path.join(font_dir, "simhei.ttf"),
+                os.path.join(font_dir, "simsun.ttc"),
             ]
         elif system == "Darwin":
             font_paths = [
-                "/System/Library/Fonts/PingFang.ttc",    # PingFang SC
-                "/System/Library/Fonts/STHeiti Light.ttc", # STHeiti
-                "/Library/Fonts/Arial Unicode.ttf",      # Arial Unicode MS
+                "/System/Library/Fonts/PingFang.ttc",
+                "/System/Library/Fonts/STHeiti Light.ttc",
+                "/Library/Fonts/Arial Unicode.ttf",
             ]
-        else:  # Linux
+        else:
             font_paths = [
                 "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
                 "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
@@ -77,89 +106,101 @@ class HelpPlugin(Star):
                 print(f"[MoreHelp] 使用系统路径找到字体: {path}")
                 return path
 
-        # 如果什么都没找到，返回空字符串，让 Pillow 使用默认字体
         print("[MoreHelp] 未找到任何中文字体，将使用默认字体。")
         return ""
 
     async def run(self, event: AstrMessageEvent) -> MessageEventResult:
-        """插件主入口，所有消息都会经过这里"""
-        msg = event.get_message_text().strip()
-        user_id = str(event.get_sender_id())
-        session_id = event.get_session_id()
+        """插件主入口"""
+        try:
+            msg = event.get_message_text().strip()
+            user_id = str(event.get_sender_id())
+            session_id = event.get_session_id()
 
-        # 情况1：用户正在等待输入指令说明（临时会话状态）
-        if session_id in self.pending_add:
-            if not self._is_admin(user_id):
-                del self.pending_add[session_id]
-                yield event.plain_result("权限不足，操作已取消。")
-                return
+            # 调试日志：输出接收到的消息
+            print(f"[MoreHelp] 收到消息: '{msg}' from user: {user_id}, session: {session_id}")
 
-            cmd_name = self.pending_add.pop(session_id)
-            description = msg
-            if not description:
-                yield event.plain_result("说明不能为空，添加操作已取消。")
-                return
-
-            self.commands[cmd_name] = description
-            self._save_commands()
-            yield event.plain_result(f"指令 {cmd_name} 已成功添加。")
-            return
-
-        # 情况2：匹配主命令 /帮助 或 /help
-        if msg.startswith("/帮助") or msg.startswith("/help"):
-            if not self._is_admin(user_id):
-                yield event.plain_result("权限不足，仅管理员可用。")
-                return
-
-            parts = msg.split(maxsplit=2)
-
-            if len(parts) == 1:
-                img_path = self._generate_help_image()
-                if img_path and os.path.exists(img_path):
-                    yield event.image_result(img_path)
-                else:
-                    yield event.plain_result("生成帮助图片失败。")
-                return
-
-            sub_cmd = parts[1].lower()
-
-            if sub_cmd == "add":
-                if len(parts) < 3:
-                    yield event.plain_result("用法: /帮助 add <指令名称>")
+            # 情况1：用户正在等待输入指令说明（临时会话状态）
+            if session_id in self.pending_add:
+                if not self._is_admin(user_id):
+                    del self.pending_add[session_id]
+                    yield event.plain_result("权限不足，操作已取消。")
                     return
-                cmd_name = parts[2].strip()
-                if not cmd_name.startswith("/"):
-                    cmd_name = "/" + cmd_name
-                self.pending_add[session_id] = cmd_name
-                yield event.plain_result(f"请输入指令 {cmd_name} 的说明：")
-                return
 
-            elif sub_cmd == "remove":
-                if len(parts) < 3:
-                    yield event.plain_result("用法: /帮助 remove <指令名称>")
+                cmd_name = self.pending_add.pop(session_id)
+                description = msg
+                if not description:
+                    yield event.plain_result("说明不能为空，添加操作已取消。")
                     return
-                cmd_name = parts[2].strip()
-                if not cmd_name.startswith("/"):
-                    cmd_name = "/" + cmd_name
-                if cmd_name in self.commands:
-                    del self.commands[cmd_name]
-                    self._save_commands()
-                    yield event.plain_result(f"指令 {cmd_name} 已删除。")
+
+                self.commands[cmd_name] = description
+                self._save_commands()
+                yield event.plain_result(f"指令 {cmd_name} 已成功添加。")
+                return
+
+            # 情况2：匹配主命令 /帮助 或 /help
+            if msg.startswith("/帮助") or msg.startswith("/help"):
+                if not self._is_admin(user_id):
+                    yield event.plain_result(f"权限不足，仅管理员可用。当前用户ID: {user_id}，管理员ID: {self.admin_id}")
+                    return
+
+                parts = msg.split(maxsplit=2)
+
+                if len(parts) == 1:
+                    # 生成帮助图片
+                    try:
+                        img_path = self._generate_help_image()
+                        if img_path and os.path.exists(img_path):
+                            yield event.image_result(img_path)
+                        else:
+                            yield event.plain_result("生成帮助图片失败：图片文件不存在。")
+                    except Exception as e:
+                        error_msg = f"生成帮助图片时出错: {str(e)}"
+                        print(f"[MoreHelp] {error_msg}\n{traceback.format_exc()}")
+                        yield event.plain_result(error_msg)
+                    return
+
+                sub_cmd = parts[1].lower()
+
+                if sub_cmd == "add":
+                    if len(parts) < 3:
+                        yield event.plain_result("用法: /帮助 add <指令名称>")
+                        return
+                    cmd_name = parts[2].strip()
+                    if not cmd_name.startswith("/"):
+                        cmd_name = "/" + cmd_name
+                    self.pending_add[session_id] = cmd_name
+                    yield event.plain_result(f"请输入指令 {cmd_name} 的说明：")
+                    return
+
+                elif sub_cmd == "remove":
+                    if len(parts) < 3:
+                        yield event.plain_result("用法: /帮助 remove <指令名称>")
+                        return
+                    cmd_name = parts[2].strip()
+                    if not cmd_name.startswith("/"):
+                        cmd_name = "/" + cmd_name
+                    if cmd_name in self.commands:
+                        del self.commands[cmd_name]
+                        self._save_commands()
+                        yield event.plain_result(f"指令 {cmd_name} 已删除。")
+                    else:
+                        yield event.plain_result(f"未找到指令 {cmd_name}，请检查输入是否正确。")
+                    return
+
                 else:
-                    yield event.plain_result(f"未找到指令 {cmd_name}，请检查输入是否正确。")
-                return
+                    yield event.plain_result("未知子命令，可用: add / remove")
+                    return
 
-            else:
-                yield event.plain_result("未知子命令，可用: add / remove")
-                return
-
-        return
+            # 非本插件命令，忽略
+        except Exception as e:
+            error_msg = f"插件运行异常: {str(e)}\n{traceback.format_exc()}"
+            print(f"[MoreHelp] {error_msg}")
+            yield event.plain_result(f"插件内部错误: {str(e)}")
 
     def _generate_help_image(self) -> str:
         """生成白色背景的帮助图片，返回临时文件路径"""
         img_path = os.path.join(os.path.dirname(__file__), "help_temp.png")
         try:
-            # 加载字体
             font = None
             if self.font_path:
                 try:
@@ -173,7 +214,6 @@ class HelpPlugin(Star):
             if not self.commands:
                 img = Image.new("RGB", (400, 100), color="white")
                 draw = ImageDraw.Draw(img)
-                # 标题用稍大字体
                 title_font = None
                 if self.font_path:
                     try:
@@ -203,11 +243,12 @@ class HelpPlugin(Star):
                     y += line_height
 
             img.save(img_path)
+            print(f"[MoreHelp] 图片已保存至: {img_path}")
             return img_path
         except Exception as e:
-            print(f"[MoreHelp] 生成图片失败: {e}")
-            return ""
+            print(f"[MoreHelp] 生成图片失败: {e}\n{traceback.format_exc()}")
+            raise  # 重新抛出，由上层 run 方法捕获并返回给用户
 
     async def terminate(self):
-        """插件卸载时的清理工作（可选）"""
+        """插件卸载时的清理工作"""
         pass
