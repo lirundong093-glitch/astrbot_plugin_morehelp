@@ -66,9 +66,10 @@ class HelpPlugin(Star):
             ]
         else:
             font_paths = [
-                "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
-                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
                 "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+                "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+                "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+                "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             ]
 
@@ -85,6 +86,17 @@ class HelpPlugin(Star):
     # 主指令：所有人可用（无 permission 参数，默认为无权限限制）
     @filter.command("帮助")
     async def help_command(self, event: AstrMessageEvent):
+
+        def _get_font(self, size: int) -> ImageFont.FreeTypeFont:
+            """安全加载字体，若失败则回退到默认字体。"""
+            font_path = self._get_font_path()
+            if font_path:
+                try:
+                    return ImageFont.truetype(font_path, size)
+                except Exception as e:
+                    logger.error(f"[MoreHelp] 无法加载字体 {font_path}: {e}")
+            return ImageFont.load_default()
+        
         """查看帮助图片，所有用户均可使用。"""
         user_id = str(event.get_sender_id())
         logger.info(f"[MoreHelp] 收到 /帮助 指令，来自用户: {user_id}")
