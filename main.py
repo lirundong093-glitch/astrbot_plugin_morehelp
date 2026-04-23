@@ -5,6 +5,7 @@ from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
 from astrbot.api.star import Context, Star, register
 from astrbot.api.message import MessageEvent
 
+@register("morehelp", "Lucy", "自定义帮助插件", "1.0.0")
 class HelpPlugin(Plugin):
     def __init__(self, context: Context):
         super().__init__(context)
