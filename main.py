@@ -22,6 +22,15 @@ class HelpPlugin(Star):
         self.config = config
         self.admin_id = str(config.get("admin_id", ""))
 
+         # ----- 清理上一次生成的帮助图片缓存 -----
+        img_cache = os.path.join(os.path.dirname(__file__), "help_temp.png")
+        if os.path.exists(img_cache):
+            try:
+                os.remove(img_cache)
+                logger.info("[MoreHelp] 已删除旧的 help_temp.png 缓存")
+            except Exception as e:
+                logger.warning(f"[MoreHelp] 删除旧图片缓存失败: {e}")
+                
         logger.info(f"[MoreHelp] 插件初始化完成，管理员ID: {self.admin_id}，字体路径: {self.font_path}")
 
     # ----- 数据层 -----
@@ -90,18 +99,14 @@ class HelpPlugin(Star):
     # ===== 唯一入口 =====
     @filter.command("帮助")
     async def help_command(self, event: AstrMessageEvent):
-        """
-        统一处理 /帮助、/帮助 add、/帮助 remove
-        """
+        """统一处理 /帮助、/帮助 add、/帮助 remove"""
         msg = event.message_str.strip()
-        # 去掉可能的指令前缀（例如消息可能是“帮助 add weather”或“/帮助 add weather”）
-        # 将第一个 token 如果等于“帮助”或“/帮助”则跳过，取下一个作为子命令
         tokens = msg.split()
         if tokens and tokens[0] in ("帮助", "/帮助"):
-            tokens = tokens[1:]   # 移除命令本身
+            tokens = tokens[1:]   # 去掉命令本身
 
         if not tokens:
-            # 纯 /帮助
+            # 纯 /帮助 → 生成图片
             user_id = str(event.get_sender_id())
             logger.info(f"[MoreHelp] 收到 /帮助 指令，来自用户: {user_id}")
             try:
@@ -115,11 +120,11 @@ class HelpPlugin(Star):
                 yield event.plain_result(f"生成帮助图片时出错: {str(e)}")
             return
 
+        # 以下代码必须在 if not tokens 同级（即缩进 8 空格，在方法内部直接定义）
         sub_cmd = tokens[0].lower()
         args = tokens[1:]
 
-        elif sub_cmd == "add":
-            # 管理员权限检查
+        if sub_cmd == "add":
             if not self._is_admin(event.get_sender_id()):
                 yield event.plain_result("权限不足，仅管理员可添加指令。")
                 return
@@ -132,7 +137,6 @@ class HelpPlugin(Star):
 
             session_id = event.get_session_id()
             self.pending_add[session_id] = (cmd_key, cmd_display)
-            # 记住触发 add 的原始消息，后面在 handle_message 中跳过它
             self.pending_add_skip_msg[session_id] = event.message_str.strip()
             yield event.plain_result("请发送该指令的说明：")
 
@@ -157,46 +161,40 @@ class HelpPlugin(Star):
         else:
             yield event.plain_result(f"未知子命令: {sub_cmd}，可用命令: add, remove")
 
-    # ===== 第二步：接收指令说明 =====
+    # ===== 接收指令说明（第二步）=====
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def handle_message(self, event: AstrMessageEvent):
-        # 严格忽略机器人自己的消息
+        # 忽略机器人自己的消息
         if str(event.get_self_id()) == str(event.get_sender_id()):
             return
 
         session_id = event.get_session_id()
         msg_text = event.message_str.strip()
 
-        # 1. 如果是触发 /帮助 add 的那条指令消息，直接跳过（避免重复处理）
+        # 核心修复：跳过触发 /帮助 add 的那条原始消息，防止它被当作说明
         if session_id in self.pending_add_skip_msg and msg_text == self.pending_add_skip_msg[session_id]:
             return
 
-        # 2. 没有待添加的指令，不做处理
+        # 没有待添加的指令，不做处理
         if session_id not in self.pending_add:
-            # 顺便清理可能残留的 skip 记录
             self.pending_add_skip_msg.pop(session_id, None)
             return
 
-        # 3. 二次确认管理员权限（防止期间管理员状态变化）
+        # 再次校验管理员权限
         if not self._is_admin(event.get_sender_id()):
             del self.pending_add[session_id]
             self.pending_add_skip_msg.pop(session_id, None)
             yield event.plain_result("权限不足，操作已取消。")
             return
 
-        # 4. 获取待添加的指令信息
         cmd_key, cmd_display = self.pending_add.pop(session_id)
         description = msg_text
-
-        # 清除跳过记录
         self.pending_add_skip_msg.pop(session_id, None)
 
-        # 5. 有效性校验
         if not description or description.startswith("请发送"):
             yield event.plain_result("说明不能为空，操作已取消。")
             return
 
-        # 6. 保存指令
         self.commands[cmd_key] = description
         self._save_commands()
         yield event.plain_result(f"指令 {cmd_display} 已成功添加。")
