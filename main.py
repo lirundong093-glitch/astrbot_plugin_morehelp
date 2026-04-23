@@ -1,9 +1,9 @@
 import json
 import os
 from PIL import Image, ImageDraw, ImageFont
-from astrbot.api.plugin import Plugin, on_command
+from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+from astrbot.api.star import Context, Star, register
 from astrbot.api.message import MessageEvent
-from astrbot.api.context import Context
 
 class HelpPlugin(Plugin):
     def __init__(self, context: Context):
