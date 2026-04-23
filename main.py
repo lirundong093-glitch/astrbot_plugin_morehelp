@@ -15,7 +15,7 @@ class HelpPlugin(Star):
         self.commands_file = os.path.join(os.path.dirname(__file__), "commands.json")
         self.pending_add = {}  # 键为 session_id，值为 (cmd_key, cmd_display)
         self._load_commands()
-        self.font_path = "" 
+        self.font_path = self._get_system_font()
 
         # 配置由框架自动注入
         if config is None:
