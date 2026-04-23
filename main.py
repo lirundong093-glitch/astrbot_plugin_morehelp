@@ -83,12 +83,9 @@ class HelpPlugin(Star):
         logger.warning("[MoreHelp] 未找到任何中文字体，将使用默认字体。")
         return ""
 
-    # ----- 核心指令处理：/帮助 指令（适配新版 AstrBot v4）-----
+    # ----- 核心指令处理：/帮助 指令 -----
     @filter.command("帮助")
     async def help_command(self, event: AstrMessageEvent):
-        """
-        主指令：发送 '/帮助' 生成帮助图片。
-        """
         user_id = str(event.get_sender_id())
         logger.info(f"[MoreHelp] 收到 /帮助 指令，来自用户: {user_id}")
 
@@ -110,9 +107,6 @@ class HelpPlugin(Star):
     # ----- 子指令：/帮助 add -----
     @filter.command("帮助 add")
     async def help_add_command(self, event: AstrMessageEvent):
-        """
-        子指令：发送 '/帮助 add <指令名称>' 开始添加新指令的流程。
-        """
         user_id = str(event.get_sender_id())
         session_id = event.get_session_id()
 
@@ -120,7 +114,6 @@ class HelpPlugin(Star):
             yield event.plain_result(f"权限不足，仅管理员可用。当前用户ID: {user_id}")
             return
 
-        # 指令格式应为: /帮助 add <指令名称>
         parts = event.message_str.strip().split()
         if len(parts) < 3:
             yield event.plain_result("用法: /帮助 add <指令名称>")
@@ -130,23 +123,18 @@ class HelpPlugin(Star):
         if not cmd_name.startswith("/"):
             cmd_name = "/" + cmd_name
 
-        # 将指令名称暂存，等待用户发送说明
         self.pending_add[session_id] = cmd_name
         yield event.plain_result(f"请输入指令 {cmd_name} 的说明：")
 
     # ----- 子指令：/帮助 remove -----
     @filter.command("帮助 remove")
     async def help_remove_command(self, event: AstrMessageEvent):
-        """
-        子指令：发送 '/帮助 remove <指令名称>' 删除指定指令。
-        """
         user_id = str(event.get_sender_id())
 
         if not self._is_admin(user_id):
             yield event.plain_result(f"权限不足，仅管理员可用。当前用户ID: {user_id}")
             return
 
-        # 指令格式应为: /帮助 remove <指令名称>
         parts = event.message_str.strip().split()
         if len(parts) < 3:
             yield event.plain_result("用法: /帮助 remove <指令名称>")
@@ -164,12 +152,11 @@ class HelpPlugin(Star):
             yield event.plain_result(f"未找到指令 {cmd_name}，请检查输入是否正确。")
 
     # 监听所有消息，用于处理“添加指令说明”的第二步。
-    @filter.on_message()
+    @filter.any()
     async def handle_message(self, event: AstrMessageEvent):
-        """监听所有消息，用于处理添加指令的第二步骤（接收说明）。"""
         session_id = event.get_session_id()
         if session_id not in self.pending_add:
-            return  # 不是处于等待状态的用户，忽略
+            return
 
         user_id = str(event.get_sender_id())
         if not self._is_admin(user_id):
@@ -187,7 +174,6 @@ class HelpPlugin(Star):
         self._save_commands()
         yield event.plain_result(f"指令 {cmd_name} 已成功添加。")
 
-    # ----- 生成帮助图片（保持不变）-----
     def _generate_help_image(self) -> str:
         img_path = os.path.join(os.path.dirname(__file__), "help_temp.png")
         try:
