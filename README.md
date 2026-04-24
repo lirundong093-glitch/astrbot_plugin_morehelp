@@ -15,7 +15,7 @@
 - **跨平台字体适配**：自动检测系统并使用合适的中文字体，确保显示正常
 
 ## 生成图片示例
-![image_to_show](https://github.com/lirundong093-glitch/astrbot_plugin_morehelp/blob/main/image_to_show.png?raw=true)
+![image_to_show](https://github.com/lirundong093-glitch/astrbot_plugin_morehelp/blob/master/image_to_show.png?raw=true)
 
 ## 安装
 
