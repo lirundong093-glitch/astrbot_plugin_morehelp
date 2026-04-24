@@ -133,7 +133,8 @@ class HelpPlugin(Star):
             if not args:
                 yield event.plain_result("用法: /帮助 add <指令名称>")
                 return
-            raw_cmd = args[0].strip()
+            # 将剩余参数全部拼成指令名称（例如 "weather 城市"）
+            raw_cmd = " ".join(args).strip()
             cmd_display = raw_cmd.lstrip("/")
             cmd_key = "/" + cmd_display
 
@@ -149,7 +150,8 @@ class HelpPlugin(Star):
             if not args:
                 yield event.plain_result("用法: /帮助 remove <指令名称>")
                 return
-            raw_cmd = args[0].strip()
+            # 同样拼接完整指令名
+            raw_cmd = " ".join(args).strip()
             cmd_display = raw_cmd.lstrip("/")
             cmd_key = "/" + cmd_display
 
@@ -205,51 +207,125 @@ class HelpPlugin(Star):
     def _generate_help_image(self) -> str:
         img_path = os.path.join(os.path.dirname(__file__), "help_temp.png")
         try:
-            font = self._get_font(18)
-            title_font = self._get_font(20)
+            title_font = self._get_font(22)      # 标题略大
+            header_font = self._get_font(18)     # 表头字体
+            font = self._get_font(18)            # 正文字体
 
-            if not self.commands:
-                img = Image.new("RGB", (400, 100), color="white")
-                draw = ImageDraw.Draw(img)
-                draw.text((20, 40), "暂无帮助指令", fill="black", font=title_font)
-            else:
-                line_height = 30
-                # 计算所有指令名称的最大绘制宽度
-                max_cmd_width = 0
-                for cmd in self.commands.keys():
-                    bbox = font.getbbox(cmd)          # 仅计算指令名字本身
-                    cmd_width = bbox[2] - bbox[0]
-                    if cmd_width > max_cmd_width:
-                        max_cmd_width = cmd_width
+            # 颜色定义 (均为 RGB 三元组)
+            bg_color = (253, 246, 227)          # #FDF6E3
+            header_bg = (238, 232, 213)         # #EEE8D5
+            header_text_color = (92, 79, 60)    # #5C4F3C
+            line_color = (214, 202, 176)        # #D6CAB0
+            desc_color = (79, 74, 66)            # #4F4A42
+            cmd_color = (215, 58, 73)            # #D73A49
 
-                # 说明文字的起始 x 坐标（指令最大宽度 + 右侧间距）
-                desc_x = 20 + max_cmd_width + 15   # 15 是额外间距
+            # 辅助函数：获取文本宽度与高度 (基于 getbbox)
+            def text_size(txt, fnt):
+                bbox = fnt.getbbox(txt)
+                return bbox[2] - bbox[0], bbox[3] - bbox[1]   # 宽度, 高度
 
-                # 计算整张图片的宽度：说明从 desc_x 开始，需要能容纳最长的说明文本
-                max_desc_width = 0
-                for desc in self.commands.values():
-                    bbox = font.getbbox(desc)
-                    desc_width = bbox[2] - bbox[0]
-                    if desc_width > max_desc_width:
-                        max_desc_width = desc_width
+            # 常量布局参数
+            left_margin = 30
+            top_margin = 20
+            title_bottom_spacing = 20
+            col_padding_h = 12          # 列内水平内边距
+            row_padding_v = 8           # 行垂直内边距
+            line_width = 2              # 分割线粗细
 
-                img_width = max(desc_x + max_desc_width + 20, 300)
-                img_height = len(self.commands) * line_height + 20
+            # 计算行高 (基于正文字体)
+            metrics = font.getmetrics()
+            row_height = metrics[0] + metrics[1] + 2 * row_padding_v  # ascent + descent + padding
+            header_height = row_height  # 表头与数据行等高
 
-                img = Image.new("RGB", (img_width, img_height), color="white")
-                draw = ImageDraw.Draw(img)
+            # 计算需要绘制的指令行 (支持空指令)
+            commands = list(self.commands.items()) if self.commands else [("暂无指令", "")]
+            empty_mode = not self.commands
 
-                y = 10
-                for cmd, desc in self.commands.items():
-                    # 绘制指令名称（左对齐）
-                    draw.text((20, y), cmd, fill="black", font=font)
-                    # 绘制说明（从统一位置开始，保证对齐）
-                    draw.text((desc_x, y), desc, fill="black", font=font)
-                    y += line_height
+            # 计算列宽：分别取指令名称和描述的最大宽度
+            max_cmd_w = 0
+            max_desc_w = 0
+            for cmd, desc in commands:
+                cw, _ = text_size(cmd, font)
+                if cw > max_cmd_w:
+                    max_cmd_w = cw
+                dw, _ = text_size(desc, font)
+                if dw > max_desc_w:
+                    max_desc_w = dw
+
+            # 表头文字宽度
+            hcmd_w, _ = text_size("Commands", header_font)
+            hdesc_w, _ = text_size("Description", header_font)
+            max_cmd_w = max(max_cmd_w, hcmd_w)
+            max_desc_w = max(max_desc_w, hdesc_w)
+
+            # 列总宽 (内容 + 水平内边距*2)
+            cmd_col_w = max_cmd_w + 2 * col_padding_h
+            desc_col_w = max_desc_w + 2 * col_padding_h
+            table_width = cmd_col_w + desc_col_w
+
+            # 图片尺寸
+            title_text = "指令表"
+            title_w, title_h = text_size(title_text, title_font)
+            img_width = max(title_w, table_width) + 2 * left_margin
+            # 计算表格部分高度
+            table_x = left_margin
+            table_y = top_margin + title_h + title_bottom_spacing  # 表格起始 y
+            # 表头 + 数据行高度
+            data_rows_height = len(commands) * row_height
+            table_height = header_height + data_rows_height
+            img_height = table_y + table_height + 20   # 底部留白
+
+            # 创建画布
+            img = Image.new("RGB", (img_width, img_height), bg_color)
+            draw = ImageDraw.Draw(img)
+
+            # 1. 绘制标题 (居中)
+            title_x = (img_width - title_w) // 2
+            draw.text((title_x, top_margin), title_text, fill=header_text_color, font=title_font)
+
+            # 2. 绘制表头背景
+            header_rect = (table_x, table_y, table_x + table_width, table_y + header_height)
+            draw.rectangle(header_rect, fill=header_bg)
+
+            # 表头文字
+            cmd_header_x = table_x + col_padding_h
+            desc_header_x = table_x + cmd_col_w + col_padding_h
+            # 垂直居中
+            header_text_y = table_y + (header_height - header_font.getmetrics()[0] - header_font.getmetrics()[1]) // 2 + header_font.getmetrics()[0]
+            draw.text((cmd_header_x, table_y + row_padding_v), "Commands", fill=header_text_color, font=header_font)
+            draw.text((desc_header_x, table_y + row_padding_v), "Description", fill=header_text_color, font=header_font)
+
+            # 3. 绘制数据行
+            y = table_y + header_height
+            for i, (cmd, desc) in enumerate(commands):
+                # 指令名称 (特殊颜色)
+                draw.text((cmd_header_x, y + row_padding_v), cmd, fill=cmd_color, font=font)
+                # 描述 (空指令时可能跨列显示“暂无指令”)
+                if empty_mode:
+                    # 跨整行居中显示
+                    dw, _ = text_size("暂无指令", font)
+                    draw.text((table_x + (table_width - dw) // 2, y + row_padding_v), "暂无指令",
+                              fill=desc_color, font=font)
+                else:
+                    draw.text((desc_header_x, y + row_padding_v), desc, fill=desc_color, font=font)
+                    y += row_height
+
+            # 4. 绘制内部分割线
+            # 竖线：从表头顶端到最后一个数据行底端
+            line_x = table_x + cmd_col_w
+            draw.line([(line_x, table_y), (line_x, table_y + table_height)],
+                      fill=line_color, width=line_width)
+
+            # 横线：在数据行之间 (最后一行下方不画)
+            if not empty_mode and len(commands) > 1:
+                for i in range(len(commands) - 1):
+                    line_y = table_y + header_height + (i + 1) * row_height
+                    draw.line([(table_x, line_y), (table_x + table_width, line_y)],
+                          fill=line_color, width=line_width)
 
             img.save(img_path)
             logger.info(f"[MoreHelp] 图片已保存至: {img_path}")
-            return img_path
+                return img_path
         except Exception as e:
             logger.error(f"[MoreHelp] 生成图片失败: {e}\n{traceback.format_exc()}")
             raise
