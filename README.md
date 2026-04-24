@@ -3,9 +3,10 @@
 一个 AstrBot 自定义帮助插件，支持管理员动态增删指令并生成帮助图片。
 <div align="center">
 
-[![Morehelp](https://count.getloli.com/get/@lirundong093-glitch?theme=miku)](https://github.com/lirundong093-glitch/astrbot_plugin_morehelp)
+[![Morehelp](https://count.getloli.com/get/@lirundong093-glitch?theme=gelbooru)](https://github.com/lirundong093-glitch/astrbot_plugin_morehelp)
 
 </div>
+
 ## 功能
 
 - **图片化帮助菜单**：发送 `/帮助` 自动生成包含所有已注册指令及说明的 PNG 图片
