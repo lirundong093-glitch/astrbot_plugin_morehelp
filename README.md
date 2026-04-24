@@ -3,7 +3,7 @@
 一个 AstrBot 自定义帮助插件，支持管理员动态增删指令并生成帮助图片。
 <div align="center">
 
-[![Moe Counter](https://count.getloli.com/get/@lirundong093-glitch?theme=moebooru)](https://github.com/lirundong093-glitch/astrbot_plugin_morehelp)
+[![Morehelp](https://count.getloli.com/get/@lirundong093-glitch?theme=miku)](https://github.com/lirundong093-glitch/astrbot_plugin_morehelp)
 
 </div>
 ## 功能
