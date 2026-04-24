@@ -216,8 +216,8 @@ class HelpPlugin(Star):
             header_bg = (238, 232, 213)         # #EEE8D5
             header_text_color = (92, 79, 60)    # #5C4F3C
             line_color = (214, 202, 176)        # #D6CAB0
-            desc_color = (79, 74, 66)            # #4F4A42
-            cmd_color = (215, 58, 73)            # #D73A49
+            desc_color = (79, 74, 66)           # #4F4A42
+            cmd_color = (107, 88, 118)          # #6B5876
 
             # 辅助函数：获取文本宽度与高度 (基于 getbbox)
             def text_size(txt, fnt):
