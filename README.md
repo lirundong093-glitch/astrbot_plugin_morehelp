@@ -14,6 +14,9 @@
 - **权限控制**：添加/删除操作仅限配置中指定的管理员 ID
 - **跨平台字体适配**：自动检测系统并使用合适的中文字体，确保显示正常
 
+## 生成图片示例
+![image_to_show](https://github.com/lirundong093-glitch/astrbot_plugin_morehelp/blob/main/image_to_show.png?raw=true)
+
 ## 安装
 
 将本仓库克隆或下载到 AstrBot 的 `plugins` 目录，或在 AstrBot 插件市场搜索 `morehelp` 安装。
