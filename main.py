@@ -325,7 +325,7 @@ class HelpPlugin(Star):
 
             img.save(img_path)
             logger.info(f"[MoreHelp] 图片已保存至: {img_path}")
-                return img_path
+            return img_path
         except Exception as e:
             logger.error(f"[MoreHelp] 生成图片失败: {e}\n{traceback.format_exc()}")
             raise
