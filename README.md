@@ -1,6 +1,12 @@
 # astrbot_plugin_morehelp
 
 一个 AstrBot 自定义帮助插件，支持管理员动态增删指令并生成帮助图片。
+<p align="center">
+  <img src="https://img.shields.io/badge/version-v1.0.0-blue" alt="Version">
+  <img src="https://img.shields.io/badge/Python-3.8%2B-blue" alt="Python">
+  <img src="https://img.shields.io/badge/AstrBot-%E6%8F%92%E4%BB%B6%E6%A1%86%E6%9E%B6-brightgreen" alt="AstrBot">
+  <img src="https://img.shields.io/badge/license-MIT-green" alt="License">
+</p>
 <div align="center">
 
 [![Morehelp](https://count.getloli.com/get/@lirundong093-glitch?theme=gelbooru)](https://github.com/lirundong093-glitch/astrbot_plugin_morehelp)
@@ -52,8 +58,16 @@
 
 2. 任意用户发送 `/帮助`，即可看到包含 `签到` 及说明的帮助图片。
 
-# Supports
+## 📝 许可证
+
+[MIT License](LICENSE)
+
+---
+
+## Supports
 
 - [AstrBot Repo](https://github.com/AstrBotDevs/AstrBot)
 - [AstrBot Plugin Development Docs (Chinese)](https://docs.astrbot.app/dev/star/plugin-new.html)
 - [AstrBot Plugin Development Docs (English)](https://docs.astrbot.app/en/dev/star/plugin-new.html)
+
+<p align="center">Made with ❤️ by <a href="https://github.com/lirundong093-glitch">Lucy</a></p>
