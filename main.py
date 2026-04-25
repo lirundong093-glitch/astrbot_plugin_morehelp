@@ -78,7 +78,7 @@ class HelpPlugin(Star):
                 "/System/Library/Fonts/STHeiti Light.ttc",
                 "/Library/Fonts/Arial Unicode.ttf",
             ]
-        else:
+        elif system == "Linux":
             font_paths = [
                 "/usr/share/fonts/opentype/noto/NotoSerifCJK-Regular.ttc",
                 "/usr/share/fonts/truetype/noto/NotoSerifCJK-Regular.ttc",
