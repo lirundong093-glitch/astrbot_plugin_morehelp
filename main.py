@@ -57,6 +57,12 @@ class HelpPlugin(Star):
 
     # ----- 字体 -----
     def _get_system_font(self) -> str:
+        plugin_dir = os.path.dirname(__file__)
+        local_font = os.path.join(plugin_dir, "fonts", "qweather-icons.ttf")
+        if os.path.exists(local_font):
+            logger.info(f"[MoreHelp] 使用本地字体: {local_font}")
+            return local_font
+        
         system = platform.system()
         font_paths = []
         if system == "Windows":
