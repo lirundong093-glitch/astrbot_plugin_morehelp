@@ -1,4 +1,4 @@
-# astrbot_plugin_morehelp
+# 更多的帮助(astrbot_plugin_morehelp)
 
 一个 AstrBot 自定义帮助插件，支持管理员动态增删指令并生成帮助图片。
 <p align="center">
